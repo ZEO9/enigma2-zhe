@@ -182,6 +182,62 @@ if test "$with_libvugles2" = "yes"; then
 fi
 AM_CONDITIONAL(HAVE_LIBVUGLES2, test "$with_libvugles2" = "yes")
 
+dnl ===== ZHE Vision / e2egl EGL-GLES backend (ported from openatv/enigma2 gles) =====
+AC_ARG_WITH([egl],
+  AS_HELP_STRING([--with-egl], [enable EGL/GLES2/GLES3 backend]),
+  [],
+  [with_egl=auto])
+
+have_egl=no
+have_gles2=no
+have_gles3=no
+
+AS_IF([test "x$with_egl" != "xno"], [
+  PKG_CHECK_MODULES([EGL], [egl], [have_egl=yes], [have_egl=no])
+  PKG_CHECK_MODULES([GLES2], [glesv2], [have_gles2=yes], [have_gles2=no])
+])
+
+AS_IF([test "x$have_gles2" = "xyes"], [
+  saved_CPPFLAGS="$CPPFLAGS"
+  CPPFLAGS="$CPPFLAGS $GLES2_CFLAGS"
+  AC_CHECK_HEADERS([GLES3/gl3.h], [have_gles3=yes], [have_gles3=no])
+  CPPFLAGS="$saved_CPPFLAGS"
+])
+
+AS_IF([test "x$with_egl" = "xyes"], [
+  AS_IF([test "x$have_egl" != "xyes" -o "x$have_gles2" != "xyes"], [
+    AC_MSG_ERROR([--with-egl was given, but egl and/or glesv2 were not found])
+  ])
+])
+
+use_egl=no
+AS_IF([test "x$have_egl" = "xyes" -a "x$have_gles2" = "xyes"], [
+  AC_DEFINE([HAVE_EGL], [1], [Define if EGL/GLES2 support is available])
+  use_egl=yes
+])
+AS_IF([test "x$have_egl" = "xyes" -a "x$have_gles3" = "xyes"], [
+  AC_DEFINE([HAVE_GLES3], [1], [Define if GLES3 support is available])
+])
+AM_CONDITIONAL([HAVE_EGL], [test "x$use_egl" = "xyes"])
+AC_SUBST([EGL_CFLAGS])
+AC_SUBST([EGL_LIBS])
+AC_SUBST([GLES2_CFLAGS])
+AC_SUBST([GLES2_LIBS])
+
+dnl Broadcom/Nexus NXPL native-window provider (Vu+ 4K). Auto-detected from
+dnl libnxpl (the box ships /usr/lib/libnxpl.so). Enables the WQHD OSD path.
+have_bcm_nxpl=no
+AS_IF([test "x$use_egl" = "xyes"], [
+  AC_CHECK_LIB([nxpl], [NXPL_CreateNativeWindowEXT],
+    [have_bcm_nxpl=yes; NXPL_LIBS="-lnxpl"], [have_bcm_nxpl=no])
+])
+AS_IF([test "x$have_bcm_nxpl" = "xyes"], [
+  AC_DEFINE([HAVE_BCM_NXPL], [1], [Broadcom NXPL native-window provider available])
+])
+AM_CONDITIONAL([HAVE_BCM_NXPL], [test "x$have_bcm_nxpl" = "xyes"])
+AM_CONDITIONAL(DREAMNEXTGEN, test "$BOXTYPE" == dreamone -o "$BOXTYPE" == dreamtwo)
+AC_SUBST([NXPL_LIBS])
+
 AC_ARG_WITH(libhiaccel,
 	AS_HELP_STRING([--with-libhiaccel],[use libhiaccel, yes or no]),
 	[with_libhiaccel=$withval],[with_libhiaccel=no])
