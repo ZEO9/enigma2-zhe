@@ -2,20 +2,27 @@
 #include <lib/gdi/egl/platform/broadcom/broadcom_window_provider.h>
 
 #include <cstring>
-#include <cstdio>
 
-/* Broadcom refsw / NXPL headers (from the Vu+ SDK: broadcom-refsw + the
-   vuplus-libgles -dev package that ships libnxpl.so). Kept behind the platform
-   guard so a non-Broadcom build never sees them. */
+/* Vendor VUGLES_* ABI (libvugles2), self-declared per the reconstructed map
+   (re/NXPL_ABI_MAP.md) — no vendor headers are shipped. Signatures verified from
+   glClass::InitDisplay call sites in libvugles2.so. */
 extern "C" {
-#include <refsw/nxclient.h>
-#include <refsw/default_nexus.h>
-#include <nxpl.h>
+void  VUGLES_InitPlatformAndDefaultDisplay(const char *name, float *out);
+void  VUGLES_GetDefaultNativeWindowInfo(void *info);
+void  VUGLES_RegisterDisplayPlatform(void *handle_out);
+void *VUGLES_CreateNativeWindow(void *info, int width, int height);
+unsigned VUGLES_GetClientID(void);
+void  VUGLES_SetVirtualDisplay(int a, int width, int height, int d);
+void  VUGLES_SetPosition(int x, int y, int width, int height);
+void  VUGLES_SetVisible(int visible);
+void  VUGLES_DestroyNativeWindow(void);
+void  VUGLES_UnregisterDisplayPlatform(void);
+void  VUGLES_TermPlatform(void);
 }
 
 BroadcomWindowProvider::BroadcomWindowProvider(int width, int height)
-	: m_nxpl_handle(nullptr), m_native_window(0),
-	  m_width(width), m_height(height), m_joined(false), m_registered(false)
+	: m_native_window(0), m_platform_handle(0),
+	  m_width(width), m_height(height), m_platform_up(false)
 {
 }
 
@@ -29,75 +36,64 @@ bool BroadcomWindowProvider::init(int width, int height)
 	m_width = width;
 	m_height = height;
 
-	/* 1. Join the Nexus graphics server as a client (enigma2 runs multi-process
-	      against the nexus server; NxClient is the standard client entry). */
-	NxClient_JoinSettings joinSettings;
-	NxClient_GetDefaultJoinSettings(&joinSettings);
-	snprintf(joinSettings.name, sizeof(joinSettings.name), "enigma2-zhe");
-	if (NxClient_Join(&joinSettings) != NEXUS_SUCCESS)
-	{
-		eWarning("[BroadcomWindowProvider] NxClient_Join failed -> no GLES OSD");
-		return false;
-	}
-	m_joined = true;
+	/* 1. Join the nexus server + bring up the default display (vendor plumbing). */
+	float aspect = 0.0f;
+	VUGLES_InitPlatformAndDefaultDisplay("enigma2-zhe", &aspect);
+	m_platform_up = true;
+	eDebug("[BroadcomWindowProvider] VUGLES platform up (aspect=%f)", aspect);
 
-	/* 2. Register the NXPL display platform (NULL display => default). */
-	NXPL_RegisterNexusDisplayPlatform(&m_nxpl_handle, NULL);
-	m_registered = true;
+	/* 2. Default native-window info, then register the NXPL display platform. */
+	unsigned char info[256];
+	memset(info, 0, sizeof(info));
+	VUGLES_GetDefaultNativeWindowInfo(info);
+	VUGLES_RegisterDisplayPlatform(&m_platform_handle);
+	eDebug("[BroadcomWindowProvider] NXPL display platform registered handle=%p", m_platform_handle);
 
-	/* 3. Create the native window at the requested OSD resolution. Using the EXT
-	      info struct so we can set position/size/zorder explicitly. The graphics
-	      feeder hardware-scales this surface to the HDMI output, so 2560x1440 is
-	      valid even though fb0 caps at 1920 wide. */
-	NXPL_NativeWindowInfoEXT windowInfo;
-	memset(&windowInfo, 0, sizeof(windowInfo));
-	NXPL_GetDefaultNativeWindowInfoEXT(&windowInfo);
-	windowInfo.width = m_width;
-	windowInfo.height = m_height;
-	windowInfo.x = 0;
-	windowInfo.y = 0;
-	windowInfo.stretch = true;   /* let the display composition scale to output  */
-	windowInfo.zOrder = 0;       /* OSD graphics plane                            */
-
-	m_native_window = (EGLNativeWindowType)NXPL_CreateNativeWindowEXT(&windowInfo);
+	/* 3. Create the native window at the requested OSD resolution (e.g. 2560x1440). */
+	m_native_window = VUGLES_CreateNativeWindow(info, m_width, m_height);
 	if (!m_native_window)
 	{
-		eWarning("[BroadcomWindowProvider] NXPL_CreateNativeWindowEXT(%dx%d) failed",
+		eWarning("[BroadcomWindowProvider] VUGLES_CreateNativeWindow(%dx%d) failed -> software fallback",
 			m_width, m_height);
 		return false;
 	}
 
-	eDebug("[BroadcomWindowProvider] NXPL native window %dx%d created", m_width, m_height);
+	/* 4. Bind the surface client to a WQHD virtual display + full-window position,
+	      and make it visible (the step the standalone probe could not do). */
+	unsigned clientID = VUGLES_GetClientID();
+	VUGLES_SetVirtualDisplay(0, m_width, m_height, 0);
+	VUGLES_SetPosition(0, 0, m_width, m_height);
+	VUGLES_SetVisible(1);
+	eDebug("[BroadcomWindowProvider] native window %dx%d ready (clientID=%u)", m_width, m_height, clientID);
 	return true;
 }
 
 EGLNativeDisplayType BroadcomWindowProvider::getNativeDisplay()
 {
-	/* NXPL resolves the Nexus display from the registered platform. */
+	/* The Broadcom EGL resolves the display from the registered NXPL platform. */
 	return EGL_DEFAULT_DISPLAY;
 }
 
 EGLNativeWindowType BroadcomWindowProvider::getNativeWindow()
 {
-	return m_native_window;
+	return (EGLNativeWindowType)m_native_window;
 }
 
 void BroadcomWindowProvider::cleanup()
 {
 	if (m_native_window)
 	{
-		NXPL_DestroyNativeWindow(m_native_window);
+		VUGLES_DestroyNativeWindow();
 		m_native_window = 0;
 	}
-	if (m_registered)
+	if (m_platform_handle)
 	{
-		NXPL_UnregisterNexusDisplayPlatform(&m_nxpl_handle);
-		m_registered = false;
-		m_nxpl_handle = nullptr;
+		VUGLES_UnregisterDisplayPlatform();
+		m_platform_handle = 0;
 	}
-	if (m_joined)
+	if (m_platform_up)
 	{
-		NxClient_Uninit();
-		m_joined = false;
+		VUGLES_TermPlatform();
+		m_platform_up = false;
 	}
 }

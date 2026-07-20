@@ -228,18 +228,23 @@ AC_SUBST([GLES2_CFLAGS])
 AC_SUBST([GLES2_LIBS])
 
 dnl Broadcom/Nexus NXPL native-window provider (Vu+ 4K, true WQHD OSD path).
-dnl Requires BOTH the NXPL runtime lib (libnxpl.so, present) AND the Broadcom
-dnl NXPL/nexus SDK *headers* (nxpl.h). Vu+ ships only the prebuilt .so in the
-dnl public build, so nxpl.h is absent -> HAVE_BCM_NXPL stays off, the provider is
-dnl not compiled, gEGLDC finds no native-window provider and the software renderer
-dnl is used (honest: no fake WQHD). Supply the Vu+/Broadcom NXPL SDK headers in the
-dnl sysroot to enable the real 2560x1440 GPU surface.
+dnl The vendor nexus userland is bundled in libvugles2 + libnxpl + libdvb_base +
+dnl libdvb_client (all present on the Vu+ 4K box and in the sysroot). We self-declare
+dnl the VUGLES_*/NXPL ABI (reconstructed by disassembly, re/NXPL_ABI_MAP.md), so no
+dnl vendor headers are needed -- detect by LINKABILITY of VUGLES_CreateNativeWindow.
+dnl If the libs are absent, HAVE_BCM_NXPL stays off, the provider is not compiled,
+dnl gEGLDC finds no native-window provider and the software renderer is used
+dnl (emergency fallback; never a fake-WQHD scaled surface).
 have_bcm_nxpl=no
 AS_IF([test "x$use_egl" = "xyes"], [
-  AC_CHECK_HEADER([nxpl.h], [
-    AC_CHECK_LIB([nxpl], [NXPL_CreateNativeWindowEXT],
-      [have_bcm_nxpl=yes; NXPL_LIBS="-lnxpl"], [have_bcm_nxpl=no])
-  ], [have_bcm_nxpl=no; AC_MSG_NOTICE([nxpl.h not found: Broadcom WQHD provider disabled, software fallback])])
+  save_LIBS="$LIBS"
+  AC_CHECK_LIB([vugles2], [VUGLES_CreateNativeWindow],
+    [have_bcm_nxpl=yes],
+    [have_bcm_nxpl=no; AC_MSG_NOTICE([libvugles2 (VUGLES_CreateNativeWindow) not linkable: Broadcom WQHD provider disabled, software fallback])],
+    [-lnxpl -ldvb_base -ldvb_client $EGL_LIBS $GLES2_LIBS -lm])
+  LIBS="$save_LIBS"
+  AS_IF([test "x$have_bcm_nxpl" = "xyes"],
+    [NXPL_LIBS="-lvugles2 -lnxpl -ldvb_base -ldvb_client"])
 ])
 AS_IF([test "x$have_bcm_nxpl" = "xyes"], [
   AC_DEFINE([HAVE_BCM_NXPL], [1], [Broadcom NXPL native-window provider available])

@@ -3,31 +3,27 @@
 #include <EGL/egl.h>
 #include <lib/gdi/egl/inative_window_provider.h>
 
-/* ZHE Vision — Broadcom/Nexus native-window provider for the e2egl backend.
+/* ZHE Vision — Broadcom/Nexus native-window provider for the e2egl gEGLDC.
  *
- * Implements INativeWindowProvider on the Vu+/Broadcom NXPL stack (libnxpl.so):
- * joins the Nexus graphics server (NxClient), registers the NXPL display
- * platform and creates a native EGL window at the requested OSD resolution
- * (e.g. 2560x1440 native WQHD). The window is presented by the BCM7444S graphics
- * feeder, which hardware-scales it to the HDMI output — so the OSD is authored at
- * true WQHD independent of the fb0 mode list (which caps at 1920 wide).
+ * Uses the Vu+ vendor VUGLES_* helpers ONLY for native-window + platform plumbing
+ * (join nexus, register the NXPL display platform, create the NXPL native window at
+ * the requested OSD resolution, set its virtual-display/position/visibility). The
+ * ACTUAL rendering stays in gEGLDC: its own EGL context + per-widget GLES shaders,
+ * texture manager and font atlas. This is NOT the libvugles2 whole-surface
+ * gles_set_buffer presenter.
  *
- * Verified against the exact NXPL symbols exported by /usr/lib/libnxpl.so on the
- * target (NXPL_RegisterNexusDisplayPlatform, NXPL_GetDefaultNativeWindowInfoEXT,
- * NXPL_CreateNativeWindowEXT, NXPL_DestroyNativeWindow, NXPL_UnregisterNexus...).
- * Headers come from the Vu+ SDK (broadcom-refsw / vuplus-libgles -dev) at build
- * time; a couple of NXPL_NativeWindowInfoEXT field names are refsw-version
- * dependent and confirmed on the first cross-build.
+ * The full VUGLES/NXPL ABI was reconstructed by disassembly (see re/NXPL_ABI_MAP.md);
+ * the standalone eglCreateWindowSurface bind fails only for lack of process/global
+ * platform state, so it is validated inside the fully-initialised enigma2 process.
  */
 class BroadcomWindowProvider : public INativeWindowProvider
 {
 private:
-	void *m_nxpl_handle;             /* NXPL_PlatformHandle */
-	EGLNativeWindowType m_native_window;
+	void *m_native_window;   /* NXPL window from VUGLES_CreateNativeWindow */
+	void *m_platform_handle;  /* VUGLES/NXPL display-platform handle        */
 	int m_width;
 	int m_height;
-	bool m_joined;                   /* NxClient_Join succeeded */
-	bool m_registered;               /* NXPL platform registered */
+	bool m_platform_up;
 
 public:
 	BroadcomWindowProvider(int width = 2560, int height = 1440);
