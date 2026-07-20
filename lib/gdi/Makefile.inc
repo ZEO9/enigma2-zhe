@@ -59,7 +59,7 @@ gdi_libenigma_gdi_a_SOURCES += \
 	gdi/egl/shader/gtexture_shader.cpp \
 	gdi/egl/gegldc.cpp \
 	gdi/egl/gles_version.cpp \
-	gdi/egl/gtexture_manager.cpp
+	gdi/egl/gtexture_manager.cpp \
 	gdi/egl/zhe_osd_config.cpp
 gdiinclude_HEADERS += \
 	gdi/egl/egl_config.h \
@@ -69,7 +69,7 @@ gdiinclude_HEADERS += \
 	gdi/egl/shader/gtexture_shader.h \
 	gdi/egl/gegldc.h \
 	gdi/egl/gles_version.h \
-	gdi/egl/gtexture_manager.h
+	gdi/egl/gtexture_manager.h \
 	gdi/egl/zhe_osd_config.h
 endif
 
