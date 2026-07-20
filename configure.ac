@@ -192,16 +192,19 @@ have_egl=no
 have_gles2=no
 have_gles3=no
 
+dnl The Vu+ vendor GLES (vuplus-libgles) ships headers + .so but NO pkg-config
+dnl (.pc) files, so detect via headers + libs rather than PKG_CHECK_MODULES.
 AS_IF([test "x$with_egl" != "xno"], [
-  PKG_CHECK_MODULES([EGL], [egl], [have_egl=yes], [have_egl=no])
-  PKG_CHECK_MODULES([GLES2], [glesv2], [have_gles2=yes], [have_gles2=no])
+  AC_CHECK_HEADER([EGL/egl.h], [
+    AC_CHECK_LIB([EGL], [eglGetDisplay], [have_egl=yes; EGL_LIBS="-lEGL"], [have_egl=no])
+  ], [have_egl=no])
+  AC_CHECK_HEADER([GLES2/gl2.h], [
+    AC_CHECK_LIB([GLESv2], [glClear], [have_gles2=yes; GLES2_LIBS="-lGLESv2"], [have_gles2=no])
+  ], [have_gles2=no])
 ])
 
 AS_IF([test "x$have_gles2" = "xyes"], [
-  saved_CPPFLAGS="$CPPFLAGS"
-  CPPFLAGS="$CPPFLAGS $GLES2_CFLAGS"
   AC_CHECK_HEADERS([GLES3/gl3.h], [have_gles3=yes], [have_gles3=no])
-  CPPFLAGS="$saved_CPPFLAGS"
 ])
 
 AS_IF([test "x$with_egl" = "xyes"], [
@@ -224,12 +227,19 @@ AC_SUBST([EGL_LIBS])
 AC_SUBST([GLES2_CFLAGS])
 AC_SUBST([GLES2_LIBS])
 
-dnl Broadcom/Nexus NXPL native-window provider (Vu+ 4K). Auto-detected from
-dnl libnxpl (the box ships /usr/lib/libnxpl.so). Enables the WQHD OSD path.
+dnl Broadcom/Nexus NXPL native-window provider (Vu+ 4K, true WQHD OSD path).
+dnl Requires BOTH the NXPL runtime lib (libnxpl.so, present) AND the Broadcom
+dnl NXPL/nexus SDK *headers* (nxpl.h). Vu+ ships only the prebuilt .so in the
+dnl public build, so nxpl.h is absent -> HAVE_BCM_NXPL stays off, the provider is
+dnl not compiled, gEGLDC finds no native-window provider and the software renderer
+dnl is used (honest: no fake WQHD). Supply the Vu+/Broadcom NXPL SDK headers in the
+dnl sysroot to enable the real 2560x1440 GPU surface.
 have_bcm_nxpl=no
 AS_IF([test "x$use_egl" = "xyes"], [
-  AC_CHECK_LIB([nxpl], [NXPL_CreateNativeWindowEXT],
-    [have_bcm_nxpl=yes; NXPL_LIBS="-lnxpl"], [have_bcm_nxpl=no])
+  AC_CHECK_HEADER([nxpl.h], [
+    AC_CHECK_LIB([nxpl], [NXPL_CreateNativeWindowEXT],
+      [have_bcm_nxpl=yes; NXPL_LIBS="-lnxpl"], [have_bcm_nxpl=no])
+  ], [have_bcm_nxpl=no; AC_MSG_NOTICE([nxpl.h not found: Broadcom WQHD provider disabled, software fallback])])
 ])
 AS_IF([test "x$have_bcm_nxpl" = "xyes"], [
   AC_DEFINE([HAVE_BCM_NXPL], [1], [Broadcom NXPL native-window provider available])
