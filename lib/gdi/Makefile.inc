@@ -60,7 +60,8 @@ gdi_libenigma_gdi_a_SOURCES += \
 	gdi/egl/gegldc.cpp \
 	gdi/egl/gles_version.cpp \
 	gdi/egl/gtexture_manager.cpp \
-	gdi/egl/zhe_osd_config.cpp
+	gdi/egl/zhe_osd_config.cpp \
+	gdi/egl/gles2_vao_compat.cpp
 gdiinclude_HEADERS += \
 	gdi/egl/egl_config.h \
 	gdi/egl/shader/gadvanced_shader.h \
