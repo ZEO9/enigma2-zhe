@@ -98,8 +98,9 @@ gdi_libenigma_gdi_a_SOURCES += \
 	gdi/gfbdc.h
 endif
 
-if LCD_FRAMEBUFFER_MODE
+# ZHE Vision: OpenBH includes the LCD framebuffer driver unconditionally
+# (openatv gated this behind LCD_FRAMEBUFFER_MODE, which OpenBH's configure.ac
+# does not define). vuduo4kse has a colour LCD, so build it always.
 gdi_libenigma_gdi_a_SOURCES += \
 	gdi/fblcd.cpp \
 	gdi/fblcd.h
-endif
