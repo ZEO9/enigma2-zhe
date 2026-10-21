@@ -1,3 +1,42 @@
+# ZHE — Enigma2 Graphics Development for OpenBH
+
+ZHE is a community-driven Enigma2 development effort focused on experimenting with GPU-accelerated on-screen display (OSD) rendering and higher-resolution UI support on compatible Vu+ / Broadcom-based receivers.
+
+This repository builds on **OpenBH**, **OE-Alliance**, and graphics work from the **OpenATV Enigma2 EGL/GLES branch**. It is not an independently written replacement for those projects. ZHE-specific integration and platform work is tracked in the repository history.
+
+## Development highlights
+
+- **EGL/GLES integration:** Porting an Enigma2 GPU rendering backend into the OpenBH codebase, including renderer, shaders, textures and font-atlas components.
+- **Broadcom platform integration:** Developing a native-window provider for the Vu+ Broadcom platform using vendor VUGLES/NXPL interfaces.
+- **Configurable OSD target:** Work toward a 2560 × 1440 OSD rendering path, with configuration through `/etc/enigma2/zhe-osd.conf`. Actual output depends on device capabilities and runtime support.
+- **Compatibility and fallback:** GLES2/GLES3 linking fixes and a software framebuffer fallback where the accelerated backend cannot initialize.
+
+These points describe code and development history, **not a guarantee that every feature works on every device**.
+
+## Project status
+
+The maintainer reports a working build on a Vu+ receiver. Public, reproducible test results, supported-model coverage, performance measurements, and validation of the 2560 × 1440 output path have not yet been documented here.
+
+**Before deploying:** This is experimental receiver software. Keep a recovery image and backups, and confirm compatibility with your exact hardware.
+
+## Selected development history
+
+- [OpenBH EGL/GLES port and initial Broadcom provider](https://github.com/ZEO9/enigma2-zhe/commit/143e9933b5ac46714207737288e5c469ec91cb14)
+- [Broadcom VUGLES native-window integration](https://github.com/ZEO9/enigma2-zhe/commit/4c1f0a854335d79ebe5781edd5d3e2eeb25dc775)
+- [GLES2 compatibility fix](https://github.com/ZEO9/enigma2-zhe/commit/a91ab37383edd0573d7149f39fbcceaf5d7f6938)
+
+## Upstream projects and attribution
+
+ZHE incorporates or adapts work from [OpenBH / BlackHole Enigma2](https://github.com/BlackHole/enigma2), [OE-Alliance](https://github.com/oe-alliance/oe-alliance-core), and the OpenATV Enigma2 EGL/GLES implementation. Credit and license notices in upstream files must be retained. The repository contains a GNU GPL v2 license file; individual imported components may carry their own notices.
+
+## Contributing and feedback
+
+Bug reports and reproducible test findings are welcome through GitHub Issues. When reporting an issue, include the receiver model, firmware/build details, relevant logs, and steps to reproduce. Do not share credentials, private keys, or private network information.
+
+---
+
+## OpenBH build environment and instructions (preserved from the previous README)
+
 ## OpenBh buildserver requirements: ##
 
 >Ubuntu 24.04 LTS (GNU/Linux 6.8.0-39-generic x86_64) or Ubuntu 26.04 LTS (GNU/Linux 7.0.0-14-generic x86_64)
